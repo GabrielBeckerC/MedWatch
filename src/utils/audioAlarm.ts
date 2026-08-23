@@ -162,6 +162,20 @@ class AudioAlarmManager {
       if (perm.display !== 'granted') {
         await LocalNotifications.requestPermissions();
       }
+
+      try {
+        await LocalNotifications.createChannel({
+          id: 'medwatch_alarm_channel',
+          name: 'Alarmes de Medicamentos MedWatch',
+          description: 'Canal de alta prioridade com alarme sonoro e vibração',
+          importance: 5,
+          visibility: 1,
+          vibration: true,
+        });
+      } catch {
+        // channel error fallback
+      }
+
       await LocalNotifications.schedule({
         notifications: [
           {
@@ -169,11 +183,15 @@ class AudioAlarmManager {
             body,
             id: Math.floor(Math.random() * 100000) + 1,
             schedule: { at: new Date(Date.now() + 100) },
+            channelId: 'medwatch_alarm_channel',
             actionTypeId: '',
             extra: null,
           },
         ],
       });
+
+      this.startAlarmSound();
+      this.vibrateMobile();
     } catch {
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
@@ -187,6 +205,8 @@ class AudioAlarmManager {
             window.focus();
             notif.close();
           };
+          this.startAlarmSound();
+          this.vibrateMobile();
         } catch (e) {
           console.warn('Native notification failed:', e);
         }

@@ -155,21 +155,41 @@ class AudioAlarmManager {
     }
   }
 
-  public sendNativeNotification(title: string, body: string) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        const notif = new Notification(title, {
-          body,
-          icon: '/favicon.svg',
-          tag: 'medwatch-alarm',
-          requireInteraction: true,
-        });
-        notif.onclick = () => {
-          window.focus();
-          notif.close();
-        };
-      } catch (e) {
-        console.warn('Native notification failed:', e);
+  public async sendNativeNotification(title: string, body: string) {
+    try {
+      const { LocalNotifications } = await import('@capacitor/local-notifications');
+      const perm = await LocalNotifications.checkPermissions();
+      if (perm.display !== 'granted') {
+        await LocalNotifications.requestPermissions();
+      }
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title,
+            body,
+            id: Math.floor(Math.random() * 100000) + 1,
+            schedule: { at: new Date(Date.now() + 100) },
+            actionTypeId: '',
+            extra: null,
+          },
+        ],
+      });
+    } catch {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          const notif = new Notification(title, {
+            body,
+            icon: 'favicon.svg',
+            tag: 'medwatch-alarm',
+            requireInteraction: true,
+          });
+          notif.onclick = () => {
+            window.focus();
+            notif.close();
+          };
+        } catch (e) {
+          console.warn('Native notification failed:', e);
+        }
       }
     }
   }

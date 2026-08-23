@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MedWatch</string>
+    <string name="title_activity_main">MedWatch</string>
+    <string name="package_name">com.medwatch.app</string>
+    <string name="custom_url_scheme">com.medwatch.app</string>
+</resources>

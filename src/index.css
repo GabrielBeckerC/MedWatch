@@ -274,16 +274,77 @@ body {
 .stock-level-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; border-radius: var(--radius-sm); background: var(--bg-surface); border: 1px solid var(--border-color); }
 .stock-warning { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); color: var(--primary-amber); }
 
-.med-card-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.85rem; }
+.med-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+  gap: 0.5rem;
+}
+
+.med-card-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-card-action {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.btn-card-action:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-card-action:active {
+  transform: translateY(0);
+}
+
+.action-alarm {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border: 1px solid rgba(245, 158, 11, 0.45) !important;
+  color: #fcd34d !important;
+}
+.action-alarm:hover {
+  background: rgba(245, 158, 11, 0.32) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.3) !important;
+}
+
 .action-edit {
-  background: rgba(56, 189, 248, 0.2) !important;
-  border: 1px solid rgba(56, 189, 248, 0.5) !important;
+  background: rgba(56, 189, 248, 0.18) !important;
+  border: 1px solid rgba(56, 189, 248, 0.45) !important;
   color: #7dd3fc !important;
-  font-weight: 700 !important;
 }
 .action-edit:hover {
-  background: rgba(56, 189, 248, 0.35) !important;
+  background: rgba(56, 189, 248, 0.32) !important;
   color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.3) !important;
+}
+
+.action-delete {
+  background: rgba(244, 63, 94, 0.15) !important;
+  border: 1px solid rgba(244, 63, 94, 0.4) !important;
+  color: #fda4af !important;
+}
+.action-delete:hover {
+  background: rgba(244, 63, 94, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(244, 63, 94, 0.3) !important;
 }
 
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
@@ -321,11 +382,11 @@ body {
 .color-picker-btn.selected { transform: scale(1.15); border-color: white; box-shadow: 0 0 12px rgba(255, 255, 255, 0.4); }
 
 .modal-footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--border-color); margin-top: auto; flex-shrink: 0; background: var(--bg-surface); }
-.btn { padding: 0.65rem 1.25rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; display: flex; align-items: center; gap: 0.5rem; transition: var(--transition-fast); }
-.btn-secondary { background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); }
-.btn-secondary:hover { background: var(--bg-surface-hover); }
-.btn-primary { background: var(--primary-blue); color: white; }
-.btn-primary:hover { background: #2563eb; }
+.btn { padding: 0.7rem 1.35rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease; }
+.btn-secondary { background: var(--bg-card); border: 1px solid var(--border-highlight); color: var(--text-main); }
+.btn-secondary:hover { background: var(--bg-surface-hover); border-color: rgba(255, 255, 255, 0.3); }
+.btn-primary { background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4); }
+.btn-primary:hover { background: linear-gradient(135deg, #1d4ed8, #2563eb); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5); }
 
 .color-blue { background-color: #3b82f6; border-color: #3b82f6; }
 .color-emerald { background-color: #10b981; border-color: #10b981; }

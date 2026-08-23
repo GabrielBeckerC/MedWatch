@@ -18,6 +18,7 @@ import { AlarmOverlay } from './components/AlarmOverlay';
 import { HistoryLog } from './components/HistoryLog';
 import { Pill, Plus } from 'lucide-react';
 import { alarmAudio } from './utils/audioAlarm';
+import { scheduleNativeFutureAlarms } from './utils/nativeAlarmScheduler';
 
 export function App() {
   const [medications, setMedications] = useState<Medication[]>(getStoredMedications);
@@ -33,6 +34,7 @@ export function App() {
 
   useEffect(() => {
     saveStoredMedications(medications);
+    scheduleNativeFutureAlarms(medications);
   }, [medications]);
 
   useEffect(() => {

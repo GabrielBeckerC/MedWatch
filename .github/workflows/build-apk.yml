@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Run Automated Tests
+        run: npm run test
+
       - name: Build Web Dist
         run: npm run build
 

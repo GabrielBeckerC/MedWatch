@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Pill, Bell, BellOff, Volume2, Plus, Calendar, ListFilter, History } from 'lucide-react';
 import { alarmAudio } from '../utils/audioAlarm';
+import { requestAllAlarmPermissions } from '../utils/nativeAlarmScheduler';
 
 interface NavbarProps {
   activeTab: 'timeline' | 'medications' | 'history';
@@ -34,15 +35,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   useEffect(() => {
-    if ('Notification' in window) {
-      setHasNotificationPermission(Notification.permission === 'granted');
-    }
+    requestAllAlarmPermissions().then((granted) => {
+      setHasNotificationPermission(granted);
+    });
   }, []);
 
   const handleEnableAudioAndNotifications = async () => {
-    alarmAudio.playClickBeep();
-    const perm = await alarmAudio.requestNotificationPermission();
-    setHasNotificationPermission(perm === 'granted');
+    try {
+      alarmAudio.playClickBeep();
+      const granted = await requestAllAlarmPermissions();
+      setHasNotificationPermission(granted);
+    } catch (err) {
+      console.warn('Permission request error:', err);
+    }
   };
 
   return (

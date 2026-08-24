@@ -1,29 +1,37 @@
 import { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Pill, Bell, CheckCircle2, Clock, XCircle, Volume2, ShieldAlert } from 'lucide-react';
+import { Pill, Bell, CheckCircle2, Clock, XCircle, Volume2, ShieldAlert, Check } from 'lucide-react';
 import type { DoseSchedule } from '../types/medication';
 import { alarmAudio } from '../utils/audioAlarm';
 
 interface AlarmOverlayProps {
-  activeAlarm: DoseSchedule | null;
+  activeAlarms: DoseSchedule[];
   onTakeNow: (scheduleId: string) => void;
-  onSnooze: (scheduleId: string) => void;
+  onTakeAllNow: (scheduleIds: string[]) => void;
+  onSnoozeAll: (scheduleIds: string[]) => void;
   onDismiss: () => void;
 }
 
 export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
-  activeAlarm,
+  activeAlarms,
   onTakeNow,
-  onSnooze,
+  onTakeAllNow,
+  onSnoozeAll,
   onDismiss,
 }) => {
+  const hasAlarms = activeAlarms.length > 0;
+
   useEffect(() => {
-    if (activeAlarm) {
+    if (hasAlarms) {
       alarmAudio.startAlarmSound();
       alarmAudio.vibrateMobile();
+
+      const timeset = activeAlarms[0]?.time || '';
+      const names = activeAlarms.map((a) => a.medicationName).join(', ');
       alarmAudio.sendNativeNotification(
-        `🚨 HORA DE TOMAR: ${activeAlarm.medicationName}`,
-        `Dosagem: ${activeAlarm.dosage}. Horário agendado: ${activeAlarm.time}`
+        `🚨 HORA DE TOMAR REMÉDIO (${timeset})`,
+        `Medicamentos: ${names}`,
+        { time: timeset, medicationId: activeAlarms[0]?.medicationId }
       );
     } else {
       alarmAudio.stopAlarmSound();
@@ -32,16 +40,16 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
     return () => {
       alarmAudio.stopAlarmSound();
     };
-  }, [activeAlarm]);
+  }, [hasAlarms, activeAlarms]);
 
-  if (!activeAlarm) return null;
+  if (!hasAlarms) return null;
 
   const triggerConfetti = () => {
     try {
       confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.55 },
         colors: ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b'],
       });
     } catch {
@@ -49,17 +57,23 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
     }
   };
 
-  const handleTakeNow = () => {
+  const handleTakeAll = () => {
     alarmAudio.stopAlarmSound();
     alarmAudio.playSuccessChime();
     triggerConfetti();
-    onTakeNow(activeAlarm.id);
+    onTakeAllNow(activeAlarms.map((a) => a.id));
+  };
+
+  const handleTakeSingle = (id: string) => {
+    alarmAudio.playSuccessChime();
+    triggerConfetti();
+    onTakeNow(id);
   };
 
   const handleSnooze = () => {
     alarmAudio.stopAlarmSound();
     alarmAudio.playClickBeep();
-    onSnooze(activeAlarm.id);
+    onSnoozeAll(activeAlarms.map((a) => a.id));
   };
 
   const handleDismiss = () => {
@@ -67,6 +81,9 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
     alarmAudio.playClickBeep();
     onDismiss();
   };
+
+  const scheduledTime = activeAlarms[0]?.time || '';
+  const totalCount = activeAlarms.length;
 
   return (
     <div className="alarm-fullscreen-backdrop">
@@ -79,39 +96,70 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
       <div className="alarm-modal-card">
         <div className="alarm-header-badge">
           <Bell className="alarm-bell-icon animate-bounce text-amber" />
-          <span className="alarm-badge-text">HORÁRIO DO MEDICAMENTO!</span>
-        </div>
-
-        <div className={`alarm-pill-avatar color-${activeAlarm.color}`}>
-          <Pill className="alarm-pill-icon" />
-        </div>
-
-        <div className="alarm-med-details">
-          <span className="alarm-time-tag">
-            <Clock className="icon-sm" /> Horário: {activeAlarm.time}
+          <span className="alarm-badge-text">
+            {totalCount > 1
+              ? `HORÁRIO DOS MEDICAMENTOS (${scheduledTime})`
+              : `HORÁRIO DO MEDICAMENTO (${scheduledTime})`}
           </span>
-          <h2 className="alarm-med-name">{activeAlarm.medicationName}</h2>
-          <div className="alarm-dosage-badge">{activeAlarm.dosage}</div>
+        </div>
 
-          {activeAlarm.instructions && (
-            <div className="alarm-instructions-box">
-              <ShieldAlert className="icon-sm text-sky" />
-              <span>Instrução: {activeAlarm.instructions}</span>
+        <div className="alarm-time-tag">
+          <Clock className="icon-sm" /> Horário Agendado: {scheduledTime}
+        </div>
+
+        <p className="alarm-subheading">
+          {totalCount === 1
+            ? 'Você tem 1 medicamento para tomar neste horário:'
+            : `Você tem ${totalCount} medicamentos para tomar neste horário:`}
+        </p>
+
+        {/* List of Medications Scheduled for this Time */}
+        <div className="alarm-meds-list">
+          {activeAlarms.map((item) => (
+            <div key={item.id} className={`alarm-med-item-card color-${item.color}`}>
+              <div className="alarm-item-left">
+                <div className={`alarm-item-avatar color-${item.color}`}>
+                  <Pill className="icon-md" />
+                </div>
+                <div className="alarm-item-info">
+                  <h3 className="alarm-item-name">{item.medicationName}</h3>
+                  <span className="alarm-item-dosage">{item.dosage}</span>
+                  {item.instructions && (
+                    <div className="alarm-item-instruction">
+                      <ShieldAlert className="icon-xs text-sky" />
+                      <span>{item.instructions}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {totalCount > 1 && (
+                <button
+                  onClick={() => handleTakeSingle(item.id)}
+                  className="btn-take-single"
+                  title="Tomar este medicamento"
+                >
+                  <Check className="icon-sm" />
+                  <span>Tomar</span>
+                </button>
+              )}
             </div>
-          )}
+          ))}
         </div>
 
         <div className="alarm-audio-status font-mono">
           <Volume2 className="icon-xs animate-pulse text-emerald" />
-          <span>Alarme sonoro e vibração ativos</span>
+          <span>Alarme sonoro ativo • Música em reprodução</span>
         </div>
 
         <div className="alarm-actions-stack">
-          <button onClick={handleTakeNow} className="btn-alarm-action btn-take-primary">
+          <button onClick={handleTakeAll} className="btn-alarm-action btn-take-primary">
             <CheckCircle2 className="icon-lg" />
             <div className="action-btn-text">
-              <span className="action-main-label">TOMAR AGORA</span>
-              <span className="action-sub-label">Registrar dose como concluída</span>
+              <span className="action-main-label">
+                {totalCount > 1 ? `TOMAR TODOS (${totalCount})` : 'TOMAR AGORA'}
+              </span>
+              <span className="action-sub-label">Registrar como concluído no sistema</span>
             </div>
           </button>
 
@@ -131,3 +179,4 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
     </div>
   );
 };
+

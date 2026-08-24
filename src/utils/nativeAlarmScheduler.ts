@@ -15,7 +15,7 @@ export async function requestAllAlarmPermissions(): Promise<boolean> {
       isGranted = req.display === 'granted';
     }
 
-    // Create high importance Android notification channel
+    // Create high importance Android notification channel with sound
     try {
       await LocalNotifications.createChannel({
         id: 'medwatch_alarm_channel',
@@ -24,6 +24,7 @@ export async function requestAllAlarmPermissions(): Promise<boolean> {
         importance: 5, // MAX importance
         visibility: 1,  // Public (lockscreen)
         vibration: true,
+        sound: 'alarm_sound.mp3',
       });
     } catch (e) {
       console.warn('Could not create notification channel:', e);
@@ -45,6 +46,22 @@ export async function requestAllAlarmPermissions(): Promise<boolean> {
   }
 
   return isGranted;
+}
+
+export async function setupNotificationActionListener(
+  onNotificationClick: (extra: { medicationId?: string; time?: string }) => void
+) {
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+      const extra = notification.notification.extra as { medicationId?: string; time?: string } | undefined;
+      if (extra) {
+        onNotificationClick(extra);
+      }
+    });
+  } catch {
+    // Not running in Capacitor native mode or plugin unavailable
+  }
 }
 
 export async function scheduleNativeFutureAlarms(medications: Medication[]): Promise<number> {
@@ -77,6 +94,7 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
       body: string;
       schedule: { at: Date; allowWhileIdle: boolean };
       channelId: string;
+      sound: string;
       actionTypeId: string;
       extra: Record<string, unknown>;
     }> = [];
@@ -107,9 +125,10 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
           body: `Tomar ${med.dosage} (${sch.time}) - ${med.instructions || 'Siga a recomendação médica'}`,
           schedule: {
             at: scheduleDate,
-            allowWhileIdle: true, // Forces Android OS to trigger alarm even in doze / closed state!
+            allowWhileIdle: true, // Forces Android OS to trigger alarm even in doze state!
           },
           channelId: 'medwatch_alarm_channel',
+          sound: 'alarm_sound.mp3',
           actionTypeId: '',
           extra: { medicationId: med.id, time: sch.time },
         });
@@ -129,3 +148,4 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
 
   return scheduledCount;
 }
+

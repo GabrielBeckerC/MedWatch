@@ -18,7 +18,7 @@ import { AlarmOverlay } from './components/AlarmOverlay';
 import { HistoryLog } from './components/HistoryLog';
 import { Pill, Plus } from 'lucide-react';
 import { alarmAudio } from './utils/audioAlarm';
-import { scheduleNativeFutureAlarms } from './utils/nativeAlarmScheduler';
+import { scheduleNativeFutureAlarms, setupNotificationActionListener } from './utils/nativeAlarmScheduler';
 
 export function App() {
   const [medications, setMedications] = useState<Medication[]>(getStoredMedications);
@@ -29,7 +29,7 @@ export function App() {
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
   const [editingMedication, setEditingMedication] = useState<Medication | null>(null);
 
-  const [activeAlarm, setActiveAlarm] = useState<DoseSchedule | null>(null);
+  const [activeAlarms, setActiveAlarms] = useState<DoseSchedule[]>([]);
   const [triggeredAlarmIds, setTriggeredAlarmIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -54,10 +54,39 @@ export function App() {
 
   const pendingCount = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed').length;
 
+  // Listen for native notification clicks to go directly to screen showing medications due
+  useEffect(() => {
+    setupNotificationActionListener((extra) => {
+      if (!extra) return;
+      
+      let matching: DoseSchedule[] = [];
+      if (extra.time) {
+        matching = todaySchedules.filter((s) => s.time === extra.time && s.status !== 'taken');
+      }
+      if (matching.length === 0 && extra.medicationId) {
+        matching = todaySchedules.filter((s) => s.medicationId === extra.medicationId && s.status !== 'taken');
+      }
+
+      if (matching.length > 0) {
+        setActiveAlarms(matching);
+        setTriggeredAlarmIds((prev) => {
+          const next = new Set(prev);
+          matching.forEach((m) => next.add(m.id));
+          return next;
+        });
+      }
+    });
+  }, [todaySchedules]);
+
+  // Main alarm ticker checking exact time and snoozed timers
   useEffect(() => {
     const checkScheduleTick = () => {
       const now = Date.now();
       const currentMinuteStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // Find all untriggered schedules that match current minute or expired snooze
+      const dueSchedules: DoseSchedule[] = [];
+      let targetTime: string | null = null;
 
       for (const schedule of todaySchedules) {
         if (schedule.status === 'taken') continue;
@@ -66,19 +95,29 @@ export function App() {
         const isExactMinute = schedule.time === currentMinuteStr;
 
         if ((isExactMinute || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
-          if (!activeAlarm) {
-            setActiveAlarm(schedule);
-            setTriggeredAlarmIds((prev) => new Set(prev).add(schedule.id));
-            break;
+          if (!targetTime) {
+            targetTime = schedule.time;
+          }
+          if (schedule.time === targetTime || isSnoozeExpired) {
+            dueSchedules.push(schedule);
           }
         }
+      }
+
+      if (dueSchedules.length > 0 && activeAlarms.length === 0) {
+        setActiveAlarms(dueSchedules);
+        setTriggeredAlarmIds((prev) => {
+          const next = new Set(prev);
+          dueSchedules.forEach((s) => next.add(s.id));
+          return next;
+        });
       }
     };
 
     checkScheduleTick();
     const interval = setInterval(checkScheduleTick, 2000);
     return () => clearInterval(interval);
-  }, [todaySchedules, triggeredAlarmIds, activeAlarm]);
+  }, [todaySchedules, triggeredAlarmIds, activeAlarms]);
 
   const handleSaveMedication = (medPartial: Partial<Medication>) => {
     if (medPartial.id) {
@@ -116,7 +155,7 @@ export function App() {
   };
 
   const handleMarkTaken = (scheduleId: string) => {
-    const targetSchedule = todaySchedules.find((s) => s.id === scheduleId) || activeAlarm;
+    const targetSchedule = todaySchedules.find((s) => s.id === scheduleId) || activeAlarms.find((s) => s.id === scheduleId);
     const now = Date.now();
 
     setDoseStatuses((prev) => ({
@@ -150,76 +189,131 @@ export function App() {
       setDoseLogs(getStoredDoseLogs());
     }
 
-    if (activeAlarm?.id === scheduleId) {
-      setActiveAlarm(null);
-    }
+    setActiveAlarms((prev) => {
+      const remaining = prev.filter((a) => a.id !== scheduleId);
+      return remaining;
+    });
   };
 
-  const handleSnooze = (scheduleId: string) => {
+  const handleTakeAllNow = (scheduleIds: string[]) => {
+    const now = Date.now();
+    scheduleIds.forEach((scheduleId) => {
+      const targetSchedule = todaySchedules.find((s) => s.id === scheduleId) || activeAlarms.find((s) => s.id === scheduleId);
+
+      setDoseStatuses((prev) => ({
+        ...prev,
+        [scheduleId]: {
+          status: 'taken',
+          takenAt: now,
+        },
+      }));
+
+      if (targetSchedule) {
+        setMedications((prev) =>
+          prev.map((m) => {
+            if (m.id === targetSchedule.medicationId && m.stockCount !== undefined && m.stockCount > 0) {
+              return { ...m, stockCount: m.stockCount - 1 };
+            }
+            return m;
+          })
+        );
+
+        const logEntry: DoseLogEntry = {
+          id: `log_${Date.now()}_${scheduleId}`,
+          medicationId: targetSchedule.medicationId,
+          medicationName: targetSchedule.medicationName,
+          dosage: targetSchedule.dosage,
+          scheduledTime: targetSchedule.time,
+          action: 'taken',
+          timestamp: now,
+        };
+        addDoseLogEntry(logEntry);
+      }
+    });
+
+    setDoseLogs(getStoredDoseLogs());
+    setActiveAlarms([]);
+  };
+
+  const handleSnoozeAll = (scheduleIds: string[]) => {
     const snoozeUntil = Date.now() + 10 * 60 * 1000;
-    setDoseStatuses((prev) => ({
-      ...prev,
-      [scheduleId]: {
-        status: 'snoozed',
-        snoozedUntil: snoozeUntil,
-      },
-    }));
+    
+    scheduleIds.forEach((scheduleId) => {
+      setDoseStatuses((prev) => ({
+        ...prev,
+        [scheduleId]: {
+          status: 'snoozed',
+          snoozedUntil: snoozeUntil,
+        },
+      }));
+
+      const targetSchedule = todaySchedules.find((s) => s.id === scheduleId) || activeAlarms.find((s) => s.id === scheduleId);
+      if (targetSchedule) {
+        const logEntry: DoseLogEntry = {
+          id: `log_${Date.now()}_${scheduleId}`,
+          medicationId: targetSchedule.medicationId,
+          medicationName: targetSchedule.medicationName,
+          dosage: targetSchedule.dosage,
+          scheduledTime: targetSchedule.time,
+          action: 'snoozed',
+          timestamp: Date.now(),
+        };
+        addDoseLogEntry(logEntry);
+      }
+    });
 
     setTriggeredAlarmIds((prev) => {
       const copy = new Set(prev);
-      copy.delete(scheduleId);
+      scheduleIds.forEach((id) => copy.delete(id));
       return copy;
     });
 
-    const targetSchedule = todaySchedules.find((s) => s.id === scheduleId) || activeAlarm;
-    if (targetSchedule) {
-      const logEntry: DoseLogEntry = {
-        id: `log_${Date.now()}`,
-        medicationId: targetSchedule.medicationId,
-        medicationName: targetSchedule.medicationName,
-        dosage: targetSchedule.dosage,
-        scheduledTime: targetSchedule.time,
-        action: 'snoozed',
-        timestamp: Date.now(),
-      };
-      addDoseLogEntry(logEntry);
-      setDoseLogs(getStoredDoseLogs());
-    }
-
-    if (activeAlarm?.id === scheduleId) {
-      setActiveAlarm(null);
-    }
+    setDoseLogs(getStoredDoseLogs());
+    setActiveAlarms([]);
   };
 
   const handleDismissAlarm = () => {
-    setActiveAlarm(null);
+    setActiveAlarms([]);
   };
 
   const handleTestAlarmGeneral = () => {
     alarmAudio.playClickBeep();
 
-    const dummySchedule: DoseSchedule = todaySchedules.length > 0
-      ? todaySchedules[0]
-      : {
-          id: `test_${Date.now()}`,
-          medicationId: 'test_med',
-          medicationName: 'Dipirona Sódica',
-          dosage: '500 mg - 1 comprimido',
-          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          scheduledTimestamp: Date.now(),
-          status: 'pending',
-          color: 'blue',
-          instructions: 'Tomar com água após o teste do sistema de alerta.',
-        };
+    const dummySchedules: DoseSchedule[] = todaySchedules.length > 0
+      ? todaySchedules.slice(0, Math.min(todaySchedules.length, 2))
+      : [
+          {
+            id: `test_${Date.now()}_1`,
+            medicationId: 'test_med_1',
+            medicationName: 'Dipirona Sódica',
+            dosage: '500 mg - 1 comprimido',
+            time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            scheduledTimestamp: Date.now(),
+            status: 'pending',
+            color: 'blue',
+            instructions: 'Tomar com água após o teste do sistema de alerta.',
+          },
+          {
+            id: `test_${Date.now()}_2`,
+            medicationId: 'test_med_2',
+            medicationName: 'Omeprazol',
+            dosage: '20 mg - 1 cápsula em jejum',
+            time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            scheduledTimestamp: Date.now(),
+            status: 'pending',
+            color: 'emerald',
+            instructions: 'Tomar com meio copo de água.',
+          },
+        ];
 
-    setActiveAlarm(dummySchedule);
+    setActiveAlarms(dummySchedules);
   };
 
   const handleTestSpecificAlarm = (medOrSchedule: Medication | DoseSchedule) => {
     alarmAudio.playClickBeep();
 
     if ('medicationName' in medOrSchedule) {
-      setActiveAlarm(medOrSchedule as DoseSchedule);
+      setActiveAlarms([medOrSchedule as DoseSchedule]);
     } else {
       const med = medOrSchedule as Medication;
       const dummySchedule: DoseSchedule = {
@@ -233,7 +327,7 @@ export function App() {
         color: med.color,
         instructions: med.instructions,
       };
-      setActiveAlarm(dummySchedule);
+      setActiveAlarms([dummySchedule]);
     }
   };
 
@@ -256,7 +350,7 @@ export function App() {
           <DailyTimeline
             schedules={todaySchedules}
             onMarkTaken={handleMarkTaken}
-            onSnooze={handleSnooze}
+            onSnooze={(id) => handleSnoozeAll([id])}
             onTestSpecificAlarm={handleTestSpecificAlarm}
           />
         )}
@@ -320,12 +414,14 @@ export function App() {
       />
 
       <AlarmOverlay
-        activeAlarm={activeAlarm}
+        activeAlarms={activeAlarms}
         onTakeNow={handleMarkTaken}
-        onSnooze={handleSnooze}
+        onTakeAllNow={handleTakeAllNow}
+        onSnoozeAll={handleSnoozeAll}
         onDismiss={handleDismissAlarm}
       />
     </div>
   );
 }
 export default App;
+

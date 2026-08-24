@@ -2,68 +2,125 @@ class AudioAlarmManager {
   private audioCtx: AudioContext | null = null;
   private isPlaying = false;
   private timerId: number | null = null;
+  private isUnlocked = false;
+
+  constructor() {
+    this.setupInteractionUnlock();
+  }
+
+  public isAudioUnlocked(): boolean {
+    return this.isUnlocked;
+  }
+
+  /**
+   * Registers global window touch/click/keydown listeners to unlock AudioContext
+   * as soon as the user interacts with the app (bypassing browser autoplay policies).
+   */
+  private setupInteractionUnlock() {
+    if (typeof window === 'undefined') return;
+
+    const unlock = () => {
+      this.initContext();
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().then(() => {
+          this.isUnlocked = true;
+        }).catch(() => {
+          // ignore
+        });
+      } else if (this.audioCtx) {
+        this.isUnlocked = true;
+      }
+    };
+
+    const events = ['pointerdown', 'touchstart', 'click', 'keydown'];
+    events.forEach((event) => {
+      window.addEventListener(event, unlock, { once: true, capture: true });
+    });
+  }
 
   private initContext() {
-    if (!this.audioCtx) {
-      const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.audioCtx = new AudioCtxClass();
+    if (!this.audioCtx && typeof window !== 'undefined') {
+      const AudioCtxClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtxClass) {
+        this.audioCtx = new AudioCtxClass();
+      }
     }
-    if (this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
     }
   }
 
+  /**
+   * Starts a loud, high-clarity musical alarm melody sequence.
+   * Plays continuous dual-oscillator musical notes with high volume gain.
+   */
   public async startAlarmSound() {
     try {
       this.initContext();
-      if (!this.audioCtx) return;
-      if (this.isPlaying) return;
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        await this.audioCtx.resume();
+      }
 
+      if (this.isPlaying) return;
       this.isPlaying = true;
       let step = 0;
+
+      // Musical note frequencies for a loud, clear, pleasant alarm chime melody:
+      // Sequence of C5 (523Hz), E5 (659Hz), G5 (783Hz), C6 (1046Hz), E6 (1318Hz)
+      const melodyNotes = [
+        { freq1: 523.25, freq2: 1046.5 },   // C5 + C6
+        { freq1: 659.25, freq2: 1318.51 },  // E5 + E6
+        { freq1: 783.99, freq2: 1567.98 },  // G5 + G6
+        { freq1: 1046.5, freq2: 2093.0 },   // C6 + C7 high chime
+      ];
 
       const playPulse = () => {
         if (!this.isPlaying || !this.audioCtx) return;
 
         const now = this.audioCtx.currentTime;
-        const freq1 = step % 2 === 0 ? 880 : 1046.5;
-        const freq2 = step % 2 === 0 ? 1174.66 : 1318.51;
+        const noteIndex = step % melodyNotes.length;
+        const { freq1, freq2 } = melodyNotes[noteIndex];
 
+        // Main tone oscillator (Triangle for warm loud body)
         const osc1 = this.audioCtx.createOscillator();
         const gain1 = this.audioCtx.createGain();
-        osc1.type = 'sine';
+        osc1.type = 'triangle';
         osc1.frequency.setValueAtTime(freq1, now);
 
-        gain1.gain.setValueAtTime(0, now);
-        gain1.gain.linearRampToValueAtTime(0.3, now + 0.05);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        // High volume envelope (up to 0.7 gain)
+        gain1.gain.setValueAtTime(0.01, now);
+        gain1.gain.linearRampToValueAtTime(0.7, now + 0.04);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
 
         osc1.connect(gain1);
         gain1.connect(this.audioCtx.destination);
 
         osc1.start(now);
-        osc1.stop(now + 0.38);
+        osc1.stop(now + 0.35);
 
+        // Harmonic shimmer oscillator (Sine for crisp high ring tone)
         const osc2 = this.audioCtx.createOscillator();
         const gain2 = this.audioCtx.createGain();
-        osc2.type = 'triangle';
-        osc2.frequency.setValueAtTime(freq2, now);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(freq2, now + 0.05);
 
-        gain2.gain.setValueAtTime(0, now);
-        gain2.gain.linearRampToValueAtTime(0.15, now + 0.05);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        gain2.gain.setValueAtTime(0.01, now + 0.05);
+        gain2.gain.linearRampToValueAtTime(0.4, now + 0.08);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
 
         osc2.connect(gain2);
         gain2.connect(this.audioCtx.destination);
 
-        osc2.start(now + 0.08);
-        osc2.stop(now + 0.4);
+        osc2.start(now + 0.05);
+        osc2.stop(now + 0.35);
 
         step++;
       };
 
       playPulse();
-      this.timerId = window.setInterval(playPulse, 600);
+      this.timerId = window.setInterval(playPulse, 380);
     } catch (e) {
       console.warn('Audio play error:', e);
     }
@@ -93,14 +150,14 @@ class AudioAlarmManager {
         osc.frequency.setValueAtTime(freq, now + idx * 0.08);
 
         gain.gain.setValueAtTime(0, now + idx * 0.08);
-        gain.gain.linearRampToValueAtTime(0.25, now + idx * 0.08 + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
+        gain.gain.linearRampToValueAtTime(0.35, now + idx * 0.08 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.35);
 
         osc.connect(gain);
         gain.connect(this.audioCtx.destination);
 
         osc.start(now + idx * 0.08);
-        osc.stop(now + idx * 0.08 + 0.32);
+        osc.stop(now + idx * 0.08 + 0.38);
       });
     } catch (e) {
       console.warn('Success chime error:', e);
@@ -118,23 +175,23 @@ class AudioAlarmManager {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(600, now);
 
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
 
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.06);
+      osc.stop(now + 0.07);
     } catch {
       // ignore
     }
   }
 
   public vibrateMobile() {
-    if ('vibrate' in navigator) {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
-        navigator.vibrate([400, 200, 400, 200, 800]);
+        navigator.vibrate([500, 200, 500, 200, 1000]);
       } catch {
         // ignore
       }
@@ -142,7 +199,7 @@ class AudioAlarmManager {
   }
 
   public async requestNotificationPermission(): Promise<NotificationPermission> {
-    if (!('Notification' in window)) {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
       return 'denied';
     }
     if (Notification.permission === 'granted') {
@@ -155,7 +212,7 @@ class AudioAlarmManager {
     }
   }
 
-  public async sendNativeNotification(title: string, body: string) {
+  public async sendNativeNotification(title: string, body: string, extraData?: Record<string, unknown>) {
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       const perm = await LocalNotifications.checkPermissions();
@@ -167,10 +224,11 @@ class AudioAlarmManager {
         await LocalNotifications.createChannel({
           id: 'medwatch_alarm_channel',
           name: 'Alarmes de Medicamentos MedWatch',
-          description: 'Canal de alta prioridade com alarme sonoro e vibração',
+          description: 'Canal de alta prioridade com som sonoro forte e vibração',
           importance: 5,
           visibility: 1,
           vibration: true,
+          sound: 'alarm_sound.mp3',
         });
       } catch {
         // channel error fallback
@@ -184,8 +242,9 @@ class AudioAlarmManager {
             id: Math.floor(Math.random() * 100000) + 1,
             schedule: { at: new Date(Date.now() + 100) },
             channelId: 'medwatch_alarm_channel',
+            sound: 'alarm_sound.mp3',
             actionTypeId: '',
-            extra: null,
+            extra: extraData || null,
           },
         ],
       });
@@ -193,7 +252,7 @@ class AudioAlarmManager {
       this.startAlarmSound();
       this.vibrateMobile();
     } catch {
-      if ('Notification' in window && Notification.permission === 'granted') {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         try {
           const notif = new Notification(title, {
             body,
@@ -216,3 +275,4 @@ class AudioAlarmManager {
 }
 
 export const alarmAudio = new AudioAlarmManager();
+

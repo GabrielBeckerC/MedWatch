@@ -2,7 +2,7 @@ import { useState } from 'react';
 import confetti from 'canvas-confetti';
 import type { DoseSchedule } from '../types/medication';
 import { formatTimeRemaining } from '../utils/scheduler';
-import { CheckCircle2, Clock, AlertTriangle, BellRing, Sparkles, Check } from 'lucide-react';
+import { CheckCircle2, Clock, AlertTriangle, BellRing, Sparkles, Check, FileText } from 'lucide-react';
 import { alarmAudio } from '../utils/audioAlarm';
 
 interface DailyTimelineProps {
@@ -154,7 +154,12 @@ export const DailyTimeline: React.FC<DailyTimelineProps> = ({
                     <span className={`pill-dosage-tag color-${item.color}`}>{item.dosage}</span>
                   </div>
 
-                  {item.instructions && <p className="timeline-instructions">💡 {item.instructions}</p>}
+                  {item.instructions && (
+                    <div className="timeline-instructions-card">
+                      <FileText className="icon-xs text-amber" />
+                      <span><strong>Observação:</strong> {item.instructions}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="timeline-actions-col">

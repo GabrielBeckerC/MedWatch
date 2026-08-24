@@ -398,12 +398,13 @@ export function App() {
           </div>
         )}
 
-        {activeTab === 'history' && (
+        {/* Historico de Doses sempre posicionado abaixo do conteudo dos remedios e cronograma */}
+        <div className="bottom-history-wrapper" style={{ marginTop: '2.5rem' }}>
           <HistoryLog logs={doseLogs} onClearLogs={() => {
             saveStoredDoseLogs([]);
             setDoseLogs([]);
           }} />
-        )}
+        </div>
       </main>
 
       <MedicationFormModal

@@ -1,6 +1,6 @@
 import type { Medication } from '../types/medication';
 import { generateDailyDoseTimes } from '../utils/scheduler';
-import { Pill, Clock, Edit3, Trash2, Bell, AlertTriangle, Package } from 'lucide-react';
+import { Pill, Clock, Edit3, Trash2, Bell, AlertTriangle, Package, FileText } from 'lucide-react';
 import { alarmAudio } from '../utils/audioAlarm';
 
 interface MedicationCardProps {
@@ -73,9 +73,10 @@ export const MedicationCard: React.FC<MedicationCardProps> = ({
 
       <div className="med-card-extra">
         {medication.instructions && (
-          <p className="med-instructions">
-            <strong>Notas:</strong> {medication.instructions}
-          </p>
+          <div className="med-instructions-card">
+            <FileText className="icon-xs text-amber" />
+            <span><strong>Observação:</strong> {medication.instructions}</span>
+          </div>
         )}
 
         {medication.stockCount !== undefined && (

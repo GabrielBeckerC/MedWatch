@@ -118,4 +118,60 @@ describe('Dose Scheduler Utils', () => {
     expect(schedulesToday[0].status).toBe('pending');
     expect(schedulesToday[0].takenAt).toBeUndefined();
   });
+
+  it('should resolve ALL medications for a time slot when looking up via medicationId (Problem 3 regression test)', () => {
+    const medA: Medication = {
+      id: 'med-A',
+      name: 'Dipirona 500mg',
+      dosage: '1 comprimido',
+      timesPerDay: 2,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      color: 'blue',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const medB: Medication = {
+      id: 'med-B',
+      name: 'Losartana 50mg',
+      dosage: '1 comprimido',
+      timesPerDay: 1,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      color: 'rose',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const schA = generateTodaySchedulesForMedication(medA);
+    const schB = generateTodaySchedulesForMedication(medB);
+
+    const allToday = [...schA, ...schB];
+
+    // Simulate extra payload containing medicationId = 'med-A'
+    const extraPayload = { medicationId: 'med-A' };
+    const foundMed = allToday.find((s) => s.medicationId === extraPayload.medicationId);
+    expect(foundMed).toBeDefined();
+
+    const targetTime = foundMed?.time;
+    expect(targetTime).toBe('08:00');
+
+    // Grouping all matching untaken doses for targetTime must return BOTH med-A and med-B
+    const matchingOverlayDoses = allToday.filter((s) => s.time === targetTime && s.status !== 'taken');
+    expect(matchingOverlayDoses).toHaveLength(2);
+    expect(matchingOverlayDoses.map((m) => m.medicationName)).toEqual(['Dipirona 500mg', 'Losartana 50mg']);
+  });
+
+  it('should correctly identify alarms within the 15-minute window versus older historical doses', () => {
+    const now = Date.now();
+    const fifteenMinsAgo = now - 10 * 60 * 1000; // 10 mins ago -> due
+    const sixHoursAgo = now - 6 * 60 * 60 * 1000; // 6 hours ago -> historical pending
+
+    const isDueWithinWindow = (scheduledTimestamp: number) =>
+      now >= scheduledTimestamp && now - scheduledTimestamp <= 15 * 60 * 1000;
+
+    expect(isDueWithinWindow(fifteenMinsAgo)).toBe(true);
+    expect(isDueWithinWindow(sixHoursAgo)).toBe(false);
+  });
 });

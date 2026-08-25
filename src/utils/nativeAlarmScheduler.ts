@@ -147,41 +147,52 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
       extra: Record<string, unknown>;
     }> = [];
 
+    // Group active schedules by time slot so 1 notification is scheduled per time slot
+    const schedulesByTime: Record<string, { time: string; names: string[]; count: number }> = {};
+
     medications.forEach((med) => {
       if (!med.active) return;
-
       const todaySchedules = generateTodaySchedulesForMedication(med);
-      
       todaySchedules.forEach((sch) => {
-        const [hours, minutes] = sch.time.split(':').map(Number);
-        
-        // Calculate exact Date for today
-        const scheduleDate = new Date();
-        scheduleDate.setHours(hours, minutes, 0, 0);
-
-        // If time passed today, schedule for tomorrow
-        if (scheduleDate.getTime() <= now.getTime()) {
-          scheduleDate.setDate(scheduleDate.getDate() + 1);
+        if (!schedulesByTime[sch.time]) {
+          schedulesByTime[sch.time] = { time: sch.time, names: [], count: 0 };
         }
-
-        const notifId = hashStringToId(`${med.id}_${sch.time}`);
-        notificationsToSchedule.push({
-          id: notifId,
-          title: `⏰ Hora do Remédio: ${med.name}`,
-          body: `Tomar ${med.dosage} (${sch.time}) - ${med.instructions || 'Siga a recomendação médica'}`,
-          schedule: {
-            at: scheduleDate,
-            allowWhileIdle: true, // Forces Android OS to trigger alarm even in doze state!
-          },
-          channelId: 'medwatch_alarm_channel_v3',
-          sound: 'alarm_sound.wav',
-          autoCancel: true,
-          actionTypeId: '',
-          extra: { medicationId: med.id, time: sch.time },
-        });
-
-        scheduledCount++;
+        schedulesByTime[sch.time].names.push(med.name);
+        schedulesByTime[sch.time].count += 1;
       });
+    });
+
+    Object.values(schedulesByTime).forEach((slot) => {
+      const [hours, minutes] = slot.time.split(':').map(Number);
+      const scheduleDate = new Date();
+      scheduleDate.setHours(hours, minutes, 0, 0);
+
+      if (scheduleDate.getTime() <= now.getTime()) {
+        scheduleDate.setDate(scheduleDate.getDate() + 1);
+      }
+
+      const notifId = hashStringToId(`time_slot_${slot.time}`);
+      const title = slot.count > 1 ? `⏰ HORA DOS REMÉDIOS (${slot.time})` : `⏰ HORA DO REMÉDIO (${slot.time})`;
+      const body = slot.count > 1 
+        ? `Remédios: ${slot.names.join(', ')} • Toque para ver a lista`
+        : `Tomar: ${slot.names[0]} • Toque para ver a lista`;
+
+      notificationsToSchedule.push({
+        id: notifId,
+        title,
+        body,
+        schedule: {
+          at: scheduleDate,
+          allowWhileIdle: true,
+        },
+        channelId: 'medwatch_alarm_channel_v3',
+        sound: 'alarm_sound.wav',
+        autoCancel: true,
+        actionTypeId: '',
+        extra: { time: slot.time },
+      });
+
+      scheduledCount++;
     });
 
     if (notificationsToSchedule.length > 0) {

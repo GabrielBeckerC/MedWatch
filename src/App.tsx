@@ -58,49 +58,49 @@ export function App() {
   // Helper function to check and present due medication alarms
   const checkAndTriggerDueAlarms = () => {
     const now = Date.now();
-    const dueSchedules: DoseSchedule[] = [];
     let targetTime: string | null = null;
 
     for (const schedule of todaySchedules) {
       if (schedule.status === 'taken') continue;
 
       const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
-      // An alarm is due if scheduled time is reached and within 15 minutes window, or if snoozed
       const isTimeDue = now >= schedule.scheduledTimestamp && (now - schedule.scheduledTimestamp <= 15 * 60 * 1000);
 
       if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
-        if (!targetTime) {
-          targetTime = schedule.time;
-        }
-        if (schedule.time === targetTime) {
-          dueSchedules.push(schedule);
-        }
+        targetTime = schedule.time;
+        break;
       }
     }
 
-    if (dueSchedules.length > 0 && activeAlarms.length === 0) {
-      setActiveTab('timeline');
-      setActiveAlarms(dueSchedules);
-      alarmAudio.startAlarmSound();
-      alarmAudio.vibrateMobile();
-      setTriggeredAlarmIds((prev) => {
-        const next = new Set(prev);
-        dueSchedules.forEach((s) => next.add(s.id));
-        return next;
-      });
+    if (targetTime) {
+      const dueSchedules = todaySchedules.filter((s) => s.time === targetTime && s.status !== 'taken');
+      if (dueSchedules.length > 0 && activeAlarms.length === 0) {
+        setActiveTab('timeline');
+        setActiveAlarms(dueSchedules);
+        alarmAudio.startAlarmSound();
+        alarmAudio.vibrateMobile();
+        setTriggeredAlarmIds((prev) => {
+          const next = new Set(prev);
+          dueSchedules.forEach((s) => next.add(s.id));
+          return next;
+        });
+      }
     }
   };
 
   // Listen for native notification clicks to go directly to screen showing medications due
   useEffect(() => {
     setupNotificationActionListener((extra) => {
-      let matching: DoseSchedule[] = [];
+      let targetTime: string | undefined = extra?.time;
 
-      if (extra?.time) {
-        matching = todaySchedules.filter((s) => s.time === extra.time && s.status !== 'taken');
+      if (!targetTime && extra?.medicationId) {
+        const found = todaySchedules.find((s) => s.medicationId === extra.medicationId);
+        if (found) targetTime = found.time;
       }
-      if (matching.length === 0 && extra?.medicationId) {
-        matching = todaySchedules.filter((s) => s.medicationId === extra.medicationId && s.status !== 'taken');
+
+      let matching: DoseSchedule[] = [];
+      if (targetTime) {
+        matching = todaySchedules.filter((s) => s.time === targetTime && s.status !== 'taken');
       }
 
       if (matching.length === 0) {

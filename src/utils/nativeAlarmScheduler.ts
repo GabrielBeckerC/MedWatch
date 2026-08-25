@@ -64,11 +64,26 @@ export async function clearAllNativeNotifications() {
   }
 }
 
+function hashStringToId(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return (Math.abs(hash) % 2000000000) + 1;
+}
+
 export async function setupNotificationActionListener(
   onNotificationClick: (extra?: { medicationId?: string; time?: string }) => void
 ) {
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
+
+    try {
+      await LocalNotifications.removeAllListeners();
+    } catch {
+      // ignore
+    }
 
     // 1. Listen for user tapping a notification
     await LocalNotifications.addListener('localNotificationActionPerformed', async (action) => {
@@ -137,8 +152,6 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
       extra: Record<string, unknown>;
     }> = [];
 
-    let nextId = 1000;
-
     medications.forEach((med) => {
       if (!med.active) return;
 
@@ -156,9 +169,9 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
           scheduleDate.setDate(scheduleDate.getDate() + 1);
         }
 
-        nextId += 1;
+        const notifId = hashStringToId(`${med.id}_${sch.time}`);
         notificationsToSchedule.push({
-          id: nextId,
+          id: notifId,
           title: `⏰ Hora do Remédio: ${med.name}`,
           body: `Tomar ${med.dosage} (${sch.time}) - ${med.instructions || 'Siga a recomendação médica'}`,
           schedule: {

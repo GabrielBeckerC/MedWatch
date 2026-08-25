@@ -77,6 +77,7 @@ export function App() {
       }
 
       if (matching.length > 0) {
+        setActiveTab('timeline');
         setActiveAlarms(matching);
         alarmAudio.startAlarmSound();
         alarmAudio.vibrateMobile();
@@ -89,23 +90,22 @@ export function App() {
     });
   }, [todaySchedules]);
 
-  // Main alarm ticker checking exact time and snoozed timers
+  // Main alarm ticker checking scheduled time and snoozed timers
   useEffect(() => {
     const checkScheduleTick = () => {
       const now = Date.now();
-      const currentMinuteStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      // Find all untriggered schedules that match current minute or expired snooze
+      // Find all untriggered schedules that match current/passed time or expired snooze
       const dueSchedules: DoseSchedule[] = [];
       let targetTime: string | null = null;
 
       for (const schedule of todaySchedules) {
         if (schedule.status === 'taken') continue;
 
-        const isSnoozeExpired = schedule.snoozedUntil && now >= schedule.snoozedUntil;
-        const isExactMinute = schedule.time === currentMinuteStr;
+        const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
+        const isTimeDue = schedule.scheduledTimestamp <= now;
 
-        if ((isExactMinute || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
+        if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
           if (!targetTime) {
             targetTime = schedule.time;
           }
@@ -117,6 +117,7 @@ export function App() {
       }
 
       if (dueSchedules.length > 0 && activeAlarms.length === 0) {
+        setActiveTab('timeline');
         setActiveAlarms(dueSchedules);
         alarmAudio.startAlarmSound();
         alarmAudio.vibrateMobile();
@@ -131,6 +132,74 @@ export function App() {
     checkScheduleTick();
     const interval = setInterval(checkScheduleTick, 2000);
     return () => clearInterval(interval);
+  }, [todaySchedules, triggeredAlarmIds, activeAlarms]);
+
+  // App resume & visibility change listener (triggers check automatically when unlocking phone)
+  useEffect(() => {
+    const handleAppResume = () => {
+      clearAllNativeNotifications();
+      const now = Date.now();
+      const dueSchedules: DoseSchedule[] = [];
+      let targetTime: string | null = null;
+
+      for (const schedule of todaySchedules) {
+        if (schedule.status === 'taken') continue;
+
+        const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
+        const isTimeDue = schedule.scheduledTimestamp <= now;
+
+        if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
+          if (!targetTime) {
+            targetTime = schedule.time;
+          }
+          if (schedule.time === targetTime) {
+            dueSchedules.push(schedule);
+          }
+        }
+      }
+
+      if (dueSchedules.length > 0 && activeAlarms.length === 0) {
+        setActiveTab('timeline');
+        setActiveAlarms(dueSchedules);
+        alarmAudio.startAlarmSound();
+        alarmAudio.vibrateMobile();
+        setTriggeredAlarmIds((prev) => {
+          const next = new Set(prev);
+          dueSchedules.forEach((s) => next.add(s.id));
+          return next;
+        });
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleAppResume();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleAppResume);
+
+    let appListener: { remove: () => void } | null = null;
+    import('@capacitor/app')
+      .then(({ App: CapApp }) => {
+        CapApp.addListener('appStateChange', (state) => {
+          if (state.isActive) {
+            handleAppResume();
+          }
+        }).then((l) => {
+          appListener = l;
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleAppResume);
+      if (appListener) {
+        appListener.remove();
+      }
+    };
   }, [todaySchedules, triggeredAlarmIds, activeAlarms]);
 
   const handleSaveMedication = (medPartial: Partial<Medication>) => {

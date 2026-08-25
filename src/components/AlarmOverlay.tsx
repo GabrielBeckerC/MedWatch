@@ -25,14 +25,6 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
     if (hasAlarms) {
       alarmAudio.startAlarmSound();
       alarmAudio.vibrateMobile();
-
-      const timeset = activeAlarms[0]?.time || '';
-      const names = activeAlarms.map((a) => a.medicationName).join(', ');
-      alarmAudio.sendNativeNotification(
-        `🚨 HORA DE TOMAR REMÉDIO (${timeset})`,
-        `Medicamentos: ${names}`,
-        { time: timeset, medicationId: activeAlarms[0]?.medicationId }
-      );
     } else {
       alarmAudio.stopAlarmSound();
     }
@@ -40,7 +32,7 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
     return () => {
       alarmAudio.stopAlarmSound();
     };
-  }, [hasAlarms, activeAlarms]);
+  }, [hasAlarms]);
 
   if (!hasAlarms) return null;
 

@@ -79,11 +79,6 @@ export async function setupNotificationActionListener(
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
 
-    try {
-      await LocalNotifications.removeAllListeners();
-    } catch {
-      // ignore
-    }
 
     // 1. Listen for user tapping a notification
     await LocalNotifications.addListener('localNotificationActionPerformed', async (action) => {

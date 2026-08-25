@@ -20,10 +20,19 @@ public class MainActivity extends BridgeActivity {
 
     @SuppressWarnings("deprecation")
     private void configureShowWhenLocked() {
-        if (Build.VERSION.SDK_INT >= 27) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             try {
-                getClass().getMethod("setShowWhenLocked", boolean.class).invoke(this, true);
-                getClass().getMethod("setTurnScreenOn", boolean.class).invoke(this, true);
+                setShowWhenLocked(true);
+                setTurnScreenOn(true);
+            } catch (Exception ignored) {
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                android.app.KeyguardManager km = (android.app.KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+                if (km != null) {
+                    km.requestDismissKeyguard(this, null);
+                }
             } catch (Exception ignored) {
             }
         }

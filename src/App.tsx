@@ -55,6 +55,41 @@ export function App() {
 
   const pendingCount = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed').length;
 
+  // Helper function to check and present due medication alarms
+  const checkAndTriggerDueAlarms = () => {
+    const now = Date.now();
+    const dueSchedules: DoseSchedule[] = [];
+    let targetTime: string | null = null;
+
+    for (const schedule of todaySchedules) {
+      if (schedule.status === 'taken') continue;
+
+      const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
+      const isTimeDue = schedule.scheduledTimestamp <= now;
+
+      if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
+        if (!targetTime) {
+          targetTime = schedule.time;
+        }
+        if (schedule.time === targetTime) {
+          dueSchedules.push(schedule);
+        }
+      }
+    }
+
+    if (dueSchedules.length > 0 && activeAlarms.length === 0) {
+      setActiveTab('timeline');
+      setActiveAlarms(dueSchedules);
+      alarmAudio.startAlarmSound();
+      alarmAudio.vibrateMobile();
+      setTriggeredAlarmIds((prev) => {
+        const next = new Set(prev);
+        dueSchedules.forEach((s) => next.add(s.id));
+        return next;
+      });
+    }
+  };
+
   // Listen for native notification clicks to go directly to screen showing medications due
   useEffect(() => {
     setupNotificationActionListener((extra) => {
@@ -67,9 +102,9 @@ export function App() {
         matching = todaySchedules.filter((s) => s.medicationId === extra.medicationId && s.status !== 'taken');
       }
 
-      // Fallback: If notification tapped and no exact match, grab all pending/snoozed doses for today sharing the earliest time slot
       if (matching.length === 0) {
-        const pending = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed');
+        const now = Date.now();
+        const pending = todaySchedules.filter((s) => (s.status === 'pending' || s.status === 'snoozed') && s.scheduledTimestamp <= now);
         if (pending.length > 0) {
           const firstTime = pending[0].time;
           matching = pending.filter((s) => s.time === firstTime);
@@ -86,51 +121,16 @@ export function App() {
           matching.forEach((m) => next.add(m.id));
           return next;
         });
+      } else {
+        checkAndTriggerDueAlarms();
       }
     });
   }, [todaySchedules]);
 
   // Main alarm ticker checking scheduled time and snoozed timers
   useEffect(() => {
-    const checkScheduleTick = () => {
-      const now = Date.now();
-
-      // Find all untriggered schedules that match current/passed time or expired snooze
-      const dueSchedules: DoseSchedule[] = [];
-      let targetTime: string | null = null;
-
-      for (const schedule of todaySchedules) {
-        if (schedule.status === 'taken') continue;
-
-        const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
-        const isTimeDue = schedule.scheduledTimestamp <= now;
-
-        if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
-          if (!targetTime) {
-            targetTime = schedule.time;
-          }
-          // STRICT MATCH: Only group schedules that have the EXACT SAME time string!
-          if (schedule.time === targetTime) {
-            dueSchedules.push(schedule);
-          }
-        }
-      }
-
-      if (dueSchedules.length > 0 && activeAlarms.length === 0) {
-        setActiveTab('timeline');
-        setActiveAlarms(dueSchedules);
-        alarmAudio.startAlarmSound();
-        alarmAudio.vibrateMobile();
-        setTriggeredAlarmIds((prev) => {
-          const next = new Set(prev);
-          dueSchedules.forEach((s) => next.add(s.id));
-          return next;
-        });
-      }
-    };
-
-    checkScheduleTick();
-    const interval = setInterval(checkScheduleTick, 2000);
+    checkAndTriggerDueAlarms();
+    const interval = setInterval(checkAndTriggerDueAlarms, 1500);
     return () => clearInterval(interval);
   }, [todaySchedules, triggeredAlarmIds, activeAlarms]);
 
@@ -138,37 +138,7 @@ export function App() {
   useEffect(() => {
     const handleAppResume = () => {
       clearAllNativeNotifications();
-      const now = Date.now();
-      const dueSchedules: DoseSchedule[] = [];
-      let targetTime: string | null = null;
-
-      for (const schedule of todaySchedules) {
-        if (schedule.status === 'taken') continue;
-
-        const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
-        const isTimeDue = schedule.scheduledTimestamp <= now;
-
-        if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
-          if (!targetTime) {
-            targetTime = schedule.time;
-          }
-          if (schedule.time === targetTime) {
-            dueSchedules.push(schedule);
-          }
-        }
-      }
-
-      if (dueSchedules.length > 0 && activeAlarms.length === 0) {
-        setActiveTab('timeline');
-        setActiveAlarms(dueSchedules);
-        alarmAudio.startAlarmSound();
-        alarmAudio.vibrateMobile();
-        setTriggeredAlarmIds((prev) => {
-          const next = new Set(prev);
-          dueSchedules.forEach((s) => next.add(s.id));
-          return next;
-        });
-      }
+      checkAndTriggerDueAlarms();
     };
 
     const handleVisibility = () => {

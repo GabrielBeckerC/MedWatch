@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { generateDailyDoseTimes, generateTodaySchedulesForMedication } from './scheduler';
-import type { Medication } from '../types/medication';
+import type { Medication, DoseStatus, DoseSchedule } from '../types/medication';
 
 describe('Dose Scheduler Utils', () => {
   it('should generate correct daily dose times for 3x a day starting at 08:00', () => {
@@ -177,7 +177,7 @@ describe('Dose Scheduler Utils', () => {
 
   it('should force re-opening due alarms overlay when unlocking app if activeAlarms is currently empty', () => {
     const now = Date.now();
-    const mockSchedules = [
+    const mockSchedules: DoseSchedule[] = [
       {
         id: 'med1_0800',
         medicationId: 'med1',
@@ -185,7 +185,7 @@ describe('Dose Scheduler Utils', () => {
         dosage: '1 cp',
         time: '08:00',
         scheduledTimestamp: now - 2 * 60 * 1000, // 2 mins ago
-        status: 'pending' as const,
+        status: 'pending' as DoseStatus,
         color: 'blue',
       },
     ];
@@ -195,7 +195,7 @@ describe('Dose Scheduler Utils', () => {
 
     // Evaluate trigger condition
     const dueSchedules = mockSchedules.filter((s) => {
-      if (s.status === 'taken') return false;
+      if ((s.status as DoseStatus) === 'taken') return false;
       const isTimeDue = now >= s.scheduledTimestamp && now - s.scheduledTimestamp <= 30 * 60 * 1000;
       const isUntriggered = !triggeredSet.has(s.id);
       return isTimeDue && (isUntriggered || forceIfEmpty);

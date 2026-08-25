@@ -163,15 +163,45 @@ describe('Dose Scheduler Utils', () => {
     expect(matchingOverlayDoses.map((m) => m.medicationName)).toEqual(['Dipirona 500mg', 'Losartana 50mg']);
   });
 
-  it('should correctly identify alarms within the 15-minute window versus older historical doses', () => {
+  it('should correctly identify alarms within the 30-minute window versus older historical doses', () => {
     const now = Date.now();
     const fifteenMinsAgo = now - 10 * 60 * 1000; // 10 mins ago -> due
     const sixHoursAgo = now - 6 * 60 * 60 * 1000; // 6 hours ago -> historical pending
 
     const isDueWithinWindow = (scheduledTimestamp: number) =>
-      now >= scheduledTimestamp && now - scheduledTimestamp <= 15 * 60 * 1000;
+      now >= scheduledTimestamp && now - scheduledTimestamp <= 30 * 60 * 1000;
 
     expect(isDueWithinWindow(fifteenMinsAgo)).toBe(true);
     expect(isDueWithinWindow(sixHoursAgo)).toBe(false);
+  });
+
+  it('should force re-opening due alarms overlay when unlocking app if activeAlarms is currently empty', () => {
+    const now = Date.now();
+    const mockSchedules = [
+      {
+        id: 'med1_0800',
+        medicationId: 'med1',
+        medicationName: 'Remédio A',
+        dosage: '1 cp',
+        time: '08:00',
+        scheduledTimestamp: now - 2 * 60 * 1000, // 2 mins ago
+        status: 'pending' as const,
+        color: 'blue',
+      },
+    ];
+
+    const triggeredSet = new Set<string>(['med1_0800']); // previously triggered by background ticker
+    const forceIfEmpty = true;
+
+    // Evaluate trigger condition
+    const dueSchedules = mockSchedules.filter((s) => {
+      if (s.status === 'taken') return false;
+      const isTimeDue = now >= s.scheduledTimestamp && now - s.scheduledTimestamp <= 30 * 60 * 1000;
+      const isUntriggered = !triggeredSet.has(s.id);
+      return isTimeDue && (isUntriggered || forceIfEmpty);
+    });
+
+    expect(dueSchedules).toHaveLength(1);
+    expect(dueSchedules[0].medicationName).toBe('Remédio A');
   });
 });

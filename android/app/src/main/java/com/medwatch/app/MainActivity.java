@@ -18,6 +18,13 @@ public class MainActivity extends BridgeActivity {
         configureShowWhenLocked();
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        configureShowWhenLocked();
+    }
+
     @SuppressWarnings("deprecation")
     private void configureShowWhenLocked() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {

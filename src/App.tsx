@@ -56,7 +56,7 @@ export function App() {
   const pendingCount = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed').length;
 
   // Helper function to check and present due medication alarms
-  const checkAndTriggerDueAlarms = () => {
+  const checkAndTriggerDueAlarms = (forceIfEmpty: boolean = false) => {
     const now = Date.now();
     let targetTime: string | null = null;
 
@@ -64,9 +64,11 @@ export function App() {
       if (schedule.status === 'taken') continue;
 
       const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
-      const isTimeDue = now >= schedule.scheduledTimestamp && (now - schedule.scheduledTimestamp <= 15 * 60 * 1000);
+      const isTimeDue = now >= schedule.scheduledTimestamp && (now - schedule.scheduledTimestamp <= 30 * 60 * 1000);
 
-      if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
+      const isUntriggered = !triggeredAlarmIds.has(schedule.id);
+
+      if ((isTimeDue || isSnoozeExpired) && (isUntriggered || forceIfEmpty)) {
         targetTime = schedule.time;
         break;
       }
@@ -123,7 +125,7 @@ export function App() {
           return next;
         });
       } else {
-        checkAndTriggerDueAlarms();
+        checkAndTriggerDueAlarms(true);
       }
     });
   }, [todaySchedules]);
@@ -131,7 +133,7 @@ export function App() {
   // Main alarm ticker checking scheduled time and snoozed timers
   useEffect(() => {
     checkAndTriggerDueAlarms();
-    const interval = setInterval(checkAndTriggerDueAlarms, 1500);
+    const interval = setInterval(() => checkAndTriggerDueAlarms(), 1500);
     return () => clearInterval(interval);
   }, [todaySchedules, triggeredAlarmIds, activeAlarms]);
 
@@ -139,7 +141,7 @@ export function App() {
   useEffect(() => {
     const handleAppResume = () => {
       clearAllNativeNotifications();
-      checkAndTriggerDueAlarms();
+      checkAndTriggerDueAlarms(true);
     };
 
     const handleVisibility = () => {

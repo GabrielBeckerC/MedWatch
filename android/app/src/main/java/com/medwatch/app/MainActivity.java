@@ -18,10 +18,14 @@ public class MainActivity extends BridgeActivity {
         configureShowWhenLocked();
     }
 
+    @SuppressWarnings("deprecation")
     private void configureShowWhenLocked() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
+        if (Build.VERSION.SDK_INT >= 27) {
+            try {
+                getClass().getMethod("setShowWhenLocked", boolean.class).invoke(this, true);
+                getClass().getMethod("setTurnScreenOn", boolean.class).invoke(this, true);
+            } catch (Exception ignored) {
+            }
         }
         getWindow().addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |

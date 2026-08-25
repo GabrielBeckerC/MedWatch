@@ -117,31 +117,37 @@ export const AlarmOverlay: React.FC<AlarmOverlayProps> = ({
         <div className="alarm-meds-list">
           {activeAlarms.map((item) => (
             <div key={item.id} className={`alarm-med-item-card color-${item.color}`}>
-              <div className="alarm-item-left">
-                <div className={`alarm-item-avatar color-${item.color}`}>
-                  <Pill className="icon-md" />
+              <div className="alarm-item-top-row">
+                <div className="alarm-item-left">
+                  <div className={`alarm-item-avatar color-${item.color}`}>
+                    <Pill className="icon-md" />
+                  </div>
+                  <div className="alarm-item-info">
+                    <h3 className="alarm-item-name">{item.medicationName}</h3>
+                    <span className="alarm-item-dosage">{item.dosage}</span>
+                  </div>
                 </div>
-                <div className="alarm-item-info">
-                  <h3 className="alarm-item-name">{item.medicationName}</h3>
-                  <span className="alarm-item-dosage">{item.dosage}</span>
-                  {item.instructions && (
-                    <div className="alarm-item-instruction">
-                      <ShieldAlert className="icon-xs text-sky" />
-                      <span>{item.instructions}</span>
-                    </div>
-                  )}
-                </div>
+
+                {totalCount > 1 && (
+                  <button
+                    onClick={() => handleTakeSingle(item.id)}
+                    className="btn-take-single"
+                    title="Tomar este medicamento"
+                  >
+                    <Check className="icon-sm" />
+                    <span>Tomar</span>
+                  </button>
+                )}
               </div>
 
-              {totalCount > 1 && (
-                <button
-                  onClick={() => handleTakeSingle(item.id)}
-                  className="btn-take-single"
-                  title="Tomar este medicamento"
-                >
-                  <Check className="icon-sm" />
-                  <span>Tomar</span>
-                </button>
+              {item.instructions && (
+                <div className="alarm-item-instruction-card">
+                  <ShieldAlert className="icon-xs text-amber-glow" />
+                  <div className="instruction-text-block">
+                    <span className="instruction-label">Observação / Instruções:</span>
+                    <span className="instruction-body">{item.instructions}</span>
+                  </div>
+                </div>
               )}
             </div>
           ))}

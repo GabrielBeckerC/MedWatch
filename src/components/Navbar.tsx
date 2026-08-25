@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Pill, Bell, BellOff, Volume2, Plus, Calendar, ListFilter, History } from 'lucide-react';
+import { Pill, Bell, BellOff, Volume2, Plus, Calendar, ListFilter } from 'lucide-react';
 import { alarmAudio } from '../utils/audioAlarm';
 import { requestAllAlarmPermissions } from '../utils/nativeAlarmScheduler';
 
 interface NavbarProps {
-  activeTab: 'timeline' | 'medications' | 'history';
-  setActiveTab: (tab: 'timeline' | 'medications' | 'history') => void;
+  activeTab: 'timeline' | 'medications';
+  setActiveTab: (tab: 'timeline' | 'medications') => void;
   onOpenAddModal: () => void;
   onTestAlarm: () => void;
   pendingCount: number;
@@ -120,17 +120,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           <ListFilter className="nav-icon" />
           <span>Meus Remédios</span>
-        </button>
-
-        <button
-          onClick={() => {
-            alarmAudio.playClickBeep();
-            setActiveTab('history');
-          }}
-          className={`nav-tab ${activeTab === 'history' ? 'active' : ''}`}
-        >
-          <History className="nav-icon" />
-          <span>Histórico</span>
         </button>
       </nav>
     </header>

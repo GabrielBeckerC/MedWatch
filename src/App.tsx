@@ -25,7 +25,7 @@ export function App() {
   const [doseStatuses, setDoseStatuses] = useState<Record<string, { status: DoseStatus; takenAt?: number; snoozedUntil?: number }>>(getStoredDoseStatuses);
   const [doseLogs, setDoseLogs] = useState<DoseLogEntry[]>(getStoredDoseLogs);
 
-  const [activeTab, setActiveTab] = useState<'timeline' | 'medications' | 'history'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'medications'>('timeline');
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
   const [editingMedication, setEditingMedication] = useState<Medication | null>(null);
 
@@ -57,18 +57,24 @@ export function App() {
   // Listen for native notification clicks to go directly to screen showing medications due
   useEffect(() => {
     setupNotificationActionListener((extra) => {
-      if (!extra) return;
-      
       let matching: DoseSchedule[] = [];
-      if (extra.time) {
+
+      if (extra?.time) {
         matching = todaySchedules.filter((s) => s.time === extra.time && s.status !== 'taken');
       }
-      if (matching.length === 0 && extra.medicationId) {
+      if (matching.length === 0 && extra?.medicationId) {
         matching = todaySchedules.filter((s) => s.medicationId === extra.medicationId && s.status !== 'taken');
+      }
+
+      // Fallback: If notification tapped and no exact match, grab all pending/snoozed doses for today
+      if (matching.length === 0) {
+        matching = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed');
       }
 
       if (matching.length > 0) {
         setActiveAlarms(matching);
+        alarmAudio.startAlarmSound();
+        alarmAudio.vibrateMobile();
         setTriggeredAlarmIds((prev) => {
           const next = new Set(prev);
           matching.forEach((m) => next.add(m.id));

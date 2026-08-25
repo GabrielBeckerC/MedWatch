@@ -1,5 +1,6 @@
 class AudioAlarmManager {
   private audioCtx: AudioContext | null = null;
+  private audioElement: HTMLAudioElement | null = null;
   private isPlaying = false;
   private timerId: number | null = null;
   private isUnlocked = false;
@@ -30,6 +31,10 @@ class AudioAlarmManager {
       } else if (this.audioCtx) {
         this.isUnlocked = true;
       }
+
+      if (this.audioElement) {
+        this.audioElement.load();
+      }
     };
 
     const events = ['pointerdown', 'touchstart', 'click', 'keydown'];
@@ -54,7 +59,7 @@ class AudioAlarmManager {
 
   /**
    * Starts a loud, high-clarity musical alarm melody sequence.
-   * Plays continuous dual-oscillator musical notes with high volume gain.
+   * Plays continuous audio file + dual-oscillator musical notes with high volume gain.
    */
   public async startAlarmSound() {
     try {
@@ -63,12 +68,31 @@ class AudioAlarmManager {
         await this.audioCtx.resume();
       }
 
+      // Try playing HTML5 Audio element with /alarm_sound.wav
+      try {
+        if (!this.audioElement && typeof window !== 'undefined') {
+          this.audioElement = new Audio('alarm_sound.wav');
+          this.audioElement.loop = true;
+          this.audioElement.volume = 1.0;
+        }
+        if (this.audioElement) {
+          this.audioElement.currentTime = 0;
+          const playPromise = this.audioElement.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              // Ignore autoplay restrictions, oscillator fallback will play
+            });
+          }
+        }
+      } catch {
+        // ignore HTML5 Audio failure
+      }
+
       if (this.isPlaying) return;
       this.isPlaying = true;
       let step = 0;
 
       // Musical note frequencies for a loud, clear, pleasant alarm chime melody:
-      // Sequence of C5 (523Hz), E5 (659Hz), G5 (783Hz), C6 (1046Hz), E6 (1318Hz)
       const melodyNotes = [
         { freq1: 523.25, freq2: 1046.5 },   // C5 + C6
         { freq1: 659.25, freq2: 1318.51 },  // E5 + E6
@@ -89,9 +113,9 @@ class AudioAlarmManager {
         osc1.type = 'triangle';
         osc1.frequency.setValueAtTime(freq1, now);
 
-        // High volume envelope (up to 0.7 gain)
+        // High volume envelope (up to 0.8 gain)
         gain1.gain.setValueAtTime(0.01, now);
-        gain1.gain.linearRampToValueAtTime(0.7, now + 0.04);
+        gain1.gain.linearRampToValueAtTime(0.8, now + 0.04);
         gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
 
         osc1.connect(gain1);
@@ -107,7 +131,7 @@ class AudioAlarmManager {
         osc2.frequency.setValueAtTime(freq2, now + 0.05);
 
         gain2.gain.setValueAtTime(0.01, now + 0.05);
-        gain2.gain.linearRampToValueAtTime(0.4, now + 0.08);
+        gain2.gain.linearRampToValueAtTime(0.5, now + 0.08);
         gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
 
         osc2.connect(gain2);
@@ -131,6 +155,14 @@ class AudioAlarmManager {
     if (this.timerId !== null) {
       clearInterval(this.timerId);
       this.timerId = null;
+    }
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+        this.audioElement.currentTime = 0;
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -221,14 +253,20 @@ class AudioAlarmManager {
       }
 
       try {
+        await LocalNotifications.deleteChannel({ id: 'medwatch_alarm_channel' });
+      } catch {
+        // ignore
+      }
+
+      try {
         await LocalNotifications.createChannel({
-          id: 'medwatch_alarm_channel',
+          id: 'medwatch_alarm_channel_v3',
           name: 'Alarmes de Medicamentos MedWatch',
           description: 'Canal de alta prioridade com som sonoro forte e vibração',
           importance: 5,
           visibility: 1,
           vibration: true,
-          sound: 'alarm_sound.mp3',
+          sound: 'alarm_sound.wav',
         });
       } catch {
         // channel error fallback
@@ -241,8 +279,8 @@ class AudioAlarmManager {
             body,
             id: Math.floor(Math.random() * 100000) + 1,
             schedule: { at: new Date(Date.now() + 100) },
-            channelId: 'medwatch_alarm_channel',
-            sound: 'alarm_sound.mp3',
+            channelId: 'medwatch_alarm_channel_v3',
+            sound: 'alarm_sound.wav',
             actionTypeId: '',
             extra: extraData || null,
           },
@@ -275,4 +313,5 @@ class AudioAlarmManager {
 }
 
 export const alarmAudio = new AudioAlarmManager();
+
 

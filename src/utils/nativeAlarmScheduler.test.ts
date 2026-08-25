@@ -64,4 +64,9 @@ describe('Native Alarm Scheduler Utils', () => {
     const count = await scheduleNativeFutureAlarms(mockMeds);
     expect(count).toBeGreaterThanOrEqual(0);
   });
+
+  it('should request permissions safely', async () => {
+    const perm = await requestAllAlarmPermissions();
+    expect(typeof perm).toBe('boolean');
+  });
 });

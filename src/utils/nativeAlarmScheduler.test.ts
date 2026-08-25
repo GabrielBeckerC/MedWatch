@@ -35,8 +35,34 @@ describe('Native Alarm Scheduler Utils', () => {
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
-  it('should handle requestAllAlarmPermissions safely', async () => {
-    const granted = await requestAllAlarmPermissions();
-    expect(typeof granted).toBe('boolean');
+  it('should schedule alarms for 2x/day and 1x/day medications starting at the same time', async () => {
+    const mockMeds: Medication[] = [
+      {
+        id: 'med-2x-sim',
+        name: 'Remédio 2x ao Dia',
+        dosage: '1 comprimido',
+        timesPerDay: 2,
+        startTime: '08:00',
+        frequencyType: 'times_per_day',
+        color: 'blue',
+        active: true,
+        createdAt: Date.now(),
+      },
+      {
+        id: 'med-1x-sim',
+        name: 'Remédio 1x ao Dia',
+        dosage: '1 cápsula',
+        timesPerDay: 1,
+        startTime: '08:00',
+        frequencyType: 'times_per_day',
+        color: 'emerald',
+        active: true,
+        createdAt: Date.now(),
+      },
+    ];
+
+    const count = await scheduleNativeFutureAlarms(mockMeds);
+    // Should schedule 2 notifications for Med 2x and 1 notification for Med 1x = 3 notifications total
+    expect(count).toBe(3);
   });
 });

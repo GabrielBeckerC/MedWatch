@@ -34,10 +34,30 @@ export function generateTodaySchedulesForMedication(
 ): DoseSchedule[] {
   const timeStrings = generateDailyDoseTimes(med.startTime, med.timesPerDay, med.intervalHours);
 
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
   return timeStrings.map((time) => {
     const id = `${med.id}_${time.replace(':', '')}`;
     const scheduledTimestamp = getTodayTimestampForTime(time);
     const existing = existingStatuses[id];
+
+    let currentStatus: DoseStatus = 'pending';
+    let takenAt: number | undefined = undefined;
+    let snoozedUntil: number | undefined = undefined;
+
+    if (existing) {
+      // Daily Cycle Reset: Only persist taken or snoozed status if it occurred TODAY (after midnight)
+      const isFromToday =
+        (existing.takenAt && existing.takenAt >= todayMidnight.getTime()) ||
+        (existing.snoozedUntil && existing.snoozedUntil >= todayMidnight.getTime());
+
+      if (isFromToday) {
+        currentStatus = existing.status;
+        takenAt = existing.takenAt;
+        snoozedUntil = existing.snoozedUntil;
+      }
+    }
 
     return {
       id,
@@ -46,9 +66,9 @@ export function generateTodaySchedulesForMedication(
       dosage: med.dosage,
       time,
       scheduledTimestamp,
-      status: existing ? existing.status : 'pending',
-      takenAt: existing?.takenAt,
-      snoozedUntil: existing?.snoozedUntil,
+      status: currentStatus,
+      takenAt,
+      snoozedUntil,
       color: med.color,
       instructions: med.instructions,
     };

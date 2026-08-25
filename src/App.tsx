@@ -65,7 +65,8 @@ export function App() {
       if (schedule.status === 'taken') continue;
 
       const isSnoozeExpired = schedule.snoozedUntil ? now >= schedule.snoozedUntil : false;
-      const isTimeDue = schedule.scheduledTimestamp <= now;
+      // An alarm is due if scheduled time is reached and within 15 minutes window, or if snoozed
+      const isTimeDue = now >= schedule.scheduledTimestamp && (now - schedule.scheduledTimestamp <= 15 * 60 * 1000);
 
       if ((isTimeDue || isSnoozeExpired) && !triggeredAlarmIds.has(schedule.id)) {
         if (!targetTime) {

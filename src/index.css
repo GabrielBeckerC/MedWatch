@@ -494,8 +494,8 @@ body {
 
 .alarm-meds-list {
   display: flex; flex-direction: column; gap: 1rem;
-  overflow-y: auto; max-height: 380px; margin-bottom: 1.25rem;
-  padding-right: 6px; text-align: left;
+  overflow-y: auto; max-height: 52vh; min-height: 120px; margin-bottom: 1.25rem;
+  padding-right: 6px; text-align: left; scroll-behavior: smooth;
 }
 
 .alarm-meds-list::-webkit-scrollbar {

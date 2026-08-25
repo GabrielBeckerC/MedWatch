@@ -4,51 +4,7 @@ const MEDS_KEY = 'medwatch_medications_v1';
 const STATUSES_KEY = 'medwatch_dose_statuses_v1';
 const LOGS_KEY = 'medwatch_dose_logs_v1';
 
-const INITIAL_MEDICATIONS: Medication[] = [
-  {
-    id: 'med_sample_1',
-    name: 'Paracetamol',
-    dosage: '750 mg - 1 comprimido',
-    timesPerDay: 3,
-    startTime: '08:00',
-    frequencyType: 'times_per_day',
-    intervalHours: 8,
-    color: 'blue',
-    stockCount: 20,
-    stockWarningThreshold: 5,
-    instructions: 'Tomar com um copo cheio de água após as refeições',
-    createdAt: Date.now() - 86400000,
-    active: true,
-  },
-  {
-    id: 'med_sample_2',
-    name: 'Vitamina D3',
-    dosage: '2000 UI - 1 cápsula',
-    timesPerDay: 1,
-    startTime: '12:00',
-    frequencyType: 'times_per_day',
-    color: 'amber',
-    stockCount: 60,
-    stockWarningThreshold: 10,
-    instructions: 'Tomar junto com o almoço',
-    createdAt: Date.now() - 86400000 * 2,
-    active: true,
-  },
-  {
-    id: 'med_sample_3',
-    name: 'Omeprazol',
-    dosage: '20 mg - 1 cápsula',
-    timesPerDay: 1,
-    startTime: '07:00',
-    frequencyType: 'times_per_day',
-    color: 'emerald',
-    stockCount: 14,
-    stockWarningThreshold: 4,
-    instructions: 'Tomar em jejum 30 minutos antes do café',
-    createdAt: Date.now() - 86400000 * 3,
-    active: true,
-  },
-];
+const INITIAL_MEDICATIONS: Medication[] = [];
 
 export function getStoredMedications(): Medication[] {
   try {

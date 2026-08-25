@@ -18,7 +18,7 @@ import { AlarmOverlay } from './components/AlarmOverlay';
 import { HistoryLog } from './components/HistoryLog';
 import { Pill, Plus } from 'lucide-react';
 import { alarmAudio } from './utils/audioAlarm';
-import { scheduleNativeFutureAlarms, setupNotificationActionListener } from './utils/nativeAlarmScheduler';
+import { scheduleNativeFutureAlarms, setupNotificationActionListener, clearAllNativeNotifications } from './utils/nativeAlarmScheduler';
 
 export function App() {
   const [medications, setMedications] = useState<Medication[]>(getStoredMedications);
@@ -83,6 +83,26 @@ export function App() {
       }
     });
   }, [todaySchedules]);
+
+  // Clear delivered notifications when app comes into focus / visibility
+  useEffect(() => {
+    const handleAppFocus = () => {
+      clearAllNativeNotifications();
+    };
+
+    window.addEventListener('focus', handleAppFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleAppFocus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('focus', handleAppFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   // Main alarm ticker checking exact time and snoozed timers
   useEffect(() => {
@@ -279,6 +299,8 @@ export function App() {
   };
 
   const handleDismissAlarm = () => {
+    alarmAudio.stopAlarmSound();
+    clearAllNativeNotifications();
     setActiveAlarms([]);
   };
 

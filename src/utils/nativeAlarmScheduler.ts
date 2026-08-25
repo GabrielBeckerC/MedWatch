@@ -55,6 +55,15 @@ export async function requestAllAlarmPermissions(): Promise<boolean> {
   return isGranted;
 }
 
+export async function clearAllNativeNotifications() {
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    await LocalNotifications.removeAllDeliveredNotifications();
+  } catch {
+    // ignore
+  }
+}
+
 export async function setupNotificationActionListener(
   onNotificationClick: (extra?: { medicationId?: string; time?: string }) => void
 ) {
@@ -62,13 +71,15 @@ export async function setupNotificationActionListener(
     const { LocalNotifications } = await import('@capacitor/local-notifications');
 
     // 1. Listen for user tapping a notification
-    await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+    await LocalNotifications.addListener('localNotificationActionPerformed', async (action) => {
+      await clearAllNativeNotifications();
       const extra = action.notification.extra as { medicationId?: string; time?: string } | undefined;
       onNotificationClick(extra || {});
     });
 
     // 2. Listen for notification arriving while app is active
-    await LocalNotifications.addListener('localNotificationReceived', (notification) => {
+    await LocalNotifications.addListener('localNotificationReceived', async (notification) => {
+      await clearAllNativeNotifications();
       const extra = notification.extra as { medicationId?: string; time?: string } | undefined;
       onNotificationClick(extra || {});
     });
@@ -79,6 +90,7 @@ export async function setupNotificationActionListener(
       if (delivered.notifications.length > 0) {
         const lastNotif = delivered.notifications[delivered.notifications.length - 1];
         const extra = lastNotif.extra as { medicationId?: string; time?: string } | undefined;
+        await clearAllNativeNotifications();
         onNotificationClick(extra || {});
       }
     } catch {
@@ -120,6 +132,7 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
       schedule: { at: Date; allowWhileIdle: boolean };
       channelId: string;
       sound: string;
+      autoCancel: boolean;
       actionTypeId: string;
       extra: Record<string, unknown>;
     }> = [];
@@ -154,6 +167,7 @@ export async function scheduleNativeFutureAlarms(medications: Medication[]): Pro
           },
           channelId: 'medwatch_alarm_channel_v3',
           sound: 'alarm_sound.wav',
+          autoCancel: true,
           actionTypeId: '',
           extra: { medicationId: med.id, time: sch.time },
         });

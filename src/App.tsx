@@ -16,7 +16,7 @@ import { MedicationCard } from './components/MedicationCard';
 import { MedicationFormModal } from './components/MedicationFormModal';
 import { AlarmOverlay } from './components/AlarmOverlay';
 import { HistoryLog } from './components/HistoryLog';
-import { Pill, Plus } from 'lucide-react';
+import { Pill, Plus, AlertTriangle, X } from 'lucide-react';
 import { alarmAudio } from './utils/audioAlarm';
 import { scheduleNativeFutureAlarms, setupNotificationActionListener, clearAllNativeNotifications } from './utils/nativeAlarmScheduler';
 
@@ -31,6 +31,7 @@ export function App() {
 
   const [activeAlarms, setActiveAlarms] = useState<DoseSchedule[]>([]);
   const [triggeredAlarmIds, setTriggeredAlarmIds] = useState<Set<string>>(new Set());
+  const [dismissNotice, setDismissNotice] = useState<string | null>(null);
 
   useEffect(() => {
     saveStoredMedications(medications);
@@ -66,9 +67,13 @@ export function App() {
         matching = todaySchedules.filter((s) => s.medicationId === extra.medicationId && s.status !== 'taken');
       }
 
-      // Fallback: If notification tapped and no exact match, grab all pending/snoozed doses for today
+      // Fallback: If notification tapped and no exact match, grab all pending/snoozed doses for today sharing the earliest time slot
       if (matching.length === 0) {
-        matching = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed');
+        const pending = todaySchedules.filter((s) => s.status === 'pending' || s.status === 'snoozed');
+        if (pending.length > 0) {
+          const firstTime = pending[0].time;
+          matching = pending.filter((s) => s.time === firstTime);
+        }
       }
 
       if (matching.length > 0) {
@@ -83,26 +88,6 @@ export function App() {
       }
     });
   }, [todaySchedules]);
-
-  // Clear delivered notifications when app comes into focus / visibility
-  useEffect(() => {
-    const handleAppFocus = () => {
-      clearAllNativeNotifications();
-    };
-
-    window.addEventListener('focus', handleAppFocus);
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        handleAppFocus();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleAppFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, []);
 
   // Main alarm ticker checking exact time and snoozed timers
   useEffect(() => {
@@ -124,7 +109,8 @@ export function App() {
           if (!targetTime) {
             targetTime = schedule.time;
           }
-          if (schedule.time === targetTime || isSnoozeExpired) {
+          // STRICT MATCH: Only group schedules that have the EXACT SAME time string!
+          if (schedule.time === targetTime) {
             dueSchedules.push(schedule);
           }
         }
@@ -132,6 +118,8 @@ export function App() {
 
       if (dueSchedules.length > 0 && activeAlarms.length === 0) {
         setActiveAlarms(dueSchedules);
+        alarmAudio.startAlarmSound();
+        alarmAudio.vibrateMobile();
         setTriggeredAlarmIds((prev) => {
           const next = new Set(prev);
           dueSchedules.forEach((s) => next.add(s.id));
@@ -217,12 +205,19 @@ export function App() {
 
     setActiveAlarms((prev) => {
       const remaining = prev.filter((a) => a.id !== scheduleId);
+      if (remaining.length === 0) {
+        alarmAudio.stopAlarmSound();
+        clearAllNativeNotifications();
+      }
       return remaining;
     });
   };
 
   const handleTakeAllNow = (scheduleIds: string[]) => {
+    alarmAudio.stopAlarmSound();
+    clearAllNativeNotifications();
     const now = Date.now();
+
     scheduleIds.forEach((scheduleId) => {
       const targetSchedule = todaySchedules.find((s) => s.id === scheduleId) || activeAlarms.find((s) => s.id === scheduleId);
 
@@ -262,6 +257,8 @@ export function App() {
   };
 
   const handleSnoozeAll = (scheduleIds: string[]) => {
+    alarmAudio.stopAlarmSound();
+    clearAllNativeNotifications();
     const snoozeUntil = Date.now() + 10 * 60 * 1000;
     
     scheduleIds.forEach((scheduleId) => {
@@ -302,37 +299,35 @@ export function App() {
     alarmAudio.stopAlarmSound();
     clearAllNativeNotifications();
     setActiveAlarms([]);
+    setDismissNotice(
+      '⚠️ Lembrete de Saúde: Você fechou a notificação sem confirmar se tomou o remédio. A dose continua registrada como PENDENTE no seu cronograma!'
+    );
   };
 
   const handleTestAlarmGeneral = () => {
     alarmAudio.playClickBeep();
 
-    const dummySchedules: DoseSchedule[] = todaySchedules.length > 0
-      ? todaySchedules.slice(0, Math.min(todaySchedules.length, 2))
-      : [
-          {
-            id: `test_${Date.now()}_1`,
-            medicationId: 'test_med_1',
-            medicationName: 'Dipirona Sódica',
-            dosage: '500 mg - 1 comprimido',
-            time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            scheduledTimestamp: Date.now(),
-            status: 'pending',
-            color: 'blue',
-            instructions: 'Tomar com água após o teste do sistema de alerta.',
-          },
-          {
-            id: `test_${Date.now()}_2`,
-            medicationId: 'test_med_2',
-            medicationName: 'Omeprazol',
-            dosage: '20 mg - 1 cápsula em jejum',
-            time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            scheduledTimestamp: Date.now(),
-            status: 'pending',
-            color: 'emerald',
-            instructions: 'Tomar com meio copo de água.',
-          },
-        ];
+    const pendingSchedules = todaySchedules.filter((s) => s.status !== 'taken');
+    let dummySchedules: DoseSchedule[] = [];
+
+    if (pendingSchedules.length > 0) {
+      const firstTime = pendingSchedules[0].time;
+      dummySchedules = pendingSchedules.filter((s) => s.time === firstTime);
+    } else {
+      dummySchedules = [
+        {
+          id: `test_${Date.now()}_1`,
+          medicationId: 'test_med_1',
+          medicationName: 'Dipirona Sódica',
+          dosage: '500 mg - 1 comprimido',
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          scheduledTimestamp: Date.now(),
+          status: 'pending',
+          color: 'blue',
+          instructions: 'Tomar com água após o teste do sistema de alerta.',
+        },
+      ];
+    }
 
     setActiveAlarms(dummySchedules);
   };
@@ -372,6 +367,18 @@ export function App() {
         onTestAlarm={handleTestAlarmGeneral}
         pendingCount={pendingCount}
       />
+
+      {dismissNotice && (
+        <div className="dismiss-warning-banner">
+          <div className="dismiss-warning-content">
+            <AlertTriangle className="icon-md text-amber" />
+            <span>{dismissNotice}</span>
+          </div>
+          <button onClick={() => setDismissNotice(null)} className="dismiss-warning-close" title="Fechar aviso">
+            <X className="icon-sm" />
+          </button>
+        </div>
+      )}
 
       <main>
         {activeTab === 'timeline' && (

@@ -32,9 +32,6 @@ class AudioAlarmManager {
         this.isUnlocked = true;
       }
 
-      if (this.audioElement) {
-        this.audioElement.load();
-      }
     };
 
     const events = ['pointerdown', 'touchstart', 'click', 'keydown'];

@@ -179,26 +179,25 @@ export function App() {
 
     document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', handleAppResume);
+    document.addEventListener('resume', handleAppResume);
 
-    let appListener: { remove: () => void } | null = null;
-    import('@capacitor/app')
-      .then(({ App: CapApp }) => {
-        CapApp.addListener('appStateChange', (state) => {
+    try {
+      const cap = (window as unknown as { Capacitor?: { Plugins?: { App?: { addListener: (event: string, cb: (state: { isActive: boolean }) => void) => void } } } }).Capacitor;
+      if (cap?.Plugins?.App) {
+        cap.Plugins.App.addListener('appStateChange', (state) => {
           if (state.isActive) {
             handleAppResume();
           }
-        }).then((l) => {
-          appListener = l;
         });
-      })
-      .catch(() => {});
+      }
+    } catch {
+      // ignore
+    }
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', handleAppResume);
-      if (appListener) {
-        appListener.remove();
-      }
+      document.removeEventListener('resume', handleAppResume);
     };
   }, [todaySchedules, triggeredAlarmIds, activeAlarms]);
 

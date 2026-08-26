@@ -204,4 +204,145 @@ describe('Dose Scheduler Utils', () => {
     expect(dueSchedules).toHaveLength(1);
     expect(dueSchedules[0].medicationName).toBe('Remédio A');
   });
+
+  it('should verify alarms work every day by resetting taken status on new day', () => {
+    const med2x: Medication = {
+      id: 'med-daily',
+      name: 'Pressão Alta',
+      dosage: '1 cp',
+      timesPerDay: 2,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      intervalHours: 12,
+      color: 'indigo',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    // Day 1 (yesterday, 25 hours ago): User took dose
+    const yesterdayTaken = Date.now() - 25 * 60 * 60 * 1000;
+
+    const yesterdayStatuses = {
+      'med-daily_0800': {
+        status: 'taken' as const,
+        takenAt: yesterdayTaken,
+      },
+    };
+
+    // Today (Day 2): Status from yesterday must reset to 'pending'
+    const day2Schedules = generateTodaySchedulesForMedication(med2x, yesterdayStatuses);
+
+    expect(day2Schedules[0].time).toBe('08:00');
+    expect(day2Schedules[0].status).toBe('pending');
+    expect(day2Schedules[1].time).toBe('20:00');
+    expect(day2Schedules[1].status).toBe('pending');
+  });
+
+  it('should combine multiple different medications scheduled at the exact same time slot (08:00)', () => {
+    const med1: Medication = {
+      id: 'm1',
+      name: 'Vitamina C',
+      dosage: '500mg',
+      timesPerDay: 1,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      color: 'amber',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const med2: Medication = {
+      id: 'm2',
+      name: 'Omega 3',
+      dosage: '1 cápsula',
+      timesPerDay: 2,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      intervalHours: 12,
+      color: 'cyan',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const med3: Medication = {
+      id: 'm3',
+      name: 'Probiótico',
+      dosage: '1 sachê',
+      timesPerDay: 3,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      intervalHours: 8,
+      color: 'emerald',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const sch1 = generateTodaySchedulesForMedication(med1);
+    const sch2 = generateTodaySchedulesForMedication(med2);
+    const sch3 = generateTodaySchedulesForMedication(med3);
+
+    const allSchedules = [...sch1, ...sch2, ...sch3];
+    const combined0800 = allSchedules.filter((s) => s.time === '08:00');
+
+    // All 3 medications have an 08:00 dose and must combine into 3 items in the same time slot
+    expect(combined0800).toHaveLength(3);
+    expect(combined0800.map((s) => s.medicationName)).toEqual(['Vitamina C', 'Omega 3', 'Probiótico']);
+  });
+
+  it('should correctly handle distinct close-interval alarms scheduled at 08:00 and 08:01', () => {
+    const medA: Medication = {
+      id: 'med-0800',
+      name: 'Remédio 08:00',
+      dosage: '1 cp',
+      timesPerDay: 1,
+      startTime: '08:00',
+      frequencyType: 'times_per_day',
+      color: 'blue',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const medB: Medication = {
+      id: 'med-0801',
+      name: 'Remédio 08:01',
+      dosage: '1 cp',
+      timesPerDay: 1,
+      startTime: '08:01',
+      frequencyType: 'times_per_day',
+      color: 'rose',
+      active: true,
+      createdAt: Date.now(),
+    };
+
+    const schA = generateTodaySchedulesForMedication(medA);
+    const schB = generateTodaySchedulesForMedication(medB);
+
+    expect(schA[0].time).toBe('08:00');
+    expect(schB[0].time).toBe('08:01');
+
+    // Verify scheduledTimestamps differ by exactly 1 minute (60,000 ms)
+    expect(schB[0].scheduledTimestamp - schA[0].scheduledTimestamp).toBe(60 * 1000);
+
+    // Simulate time at exactly 08:00:00
+    const timeAt0800 = schA[0].scheduledTimestamp;
+    
+    // At 08:00, medA is due, but medB (08:01) is NOT due yet
+    const isDueAt0800 = (ts: number) => timeAt0800 >= ts && timeAt0800 - ts <= 30 * 60 * 1000;
+    expect(isDueAt0800(schA[0].scheduledTimestamp)).toBe(true);
+    expect(isDueAt0800(schB[0].scheduledTimestamp)).toBe(false);
+
+    // Simulate time advancing 1 minute to 08:01:00
+    const timeAt0801 = schB[0].scheduledTimestamp;
+    const isDueAt0801 = (ts: number) => timeAt0801 >= ts && timeAt0801 - ts <= 30 * 60 * 1000;
+
+    // At 08:01, both medA (if still untaken) and medB are due
+    expect(isDueAt0801(schA[0].scheduledTimestamp)).toBe(true);
+    expect(isDueAt0801(schB[0].scheduledTimestamp)).toBe(true);
+
+    // If medA was taken, only medB remains active
+    schA[0].status = 'taken';
+    const activeAt0801 = [schA[0], schB[0]].filter((s) => (s.status as DoseStatus) !== 'taken' && isDueAt0801(s.scheduledTimestamp));
+    expect(activeAt0801).toHaveLength(1);
+    expect(activeAt0801[0].medicationName).toBe('Remédio 08:01');
+  });
 });

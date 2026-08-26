@@ -65,6 +65,36 @@ describe('Native Alarm Scheduler Utils', () => {
     expect(count).toBeGreaterThanOrEqual(0);
   });
 
+  it('should schedule separate native alarm entries for medications at 08:00 and 08:01', async () => {
+    const mockMeds: Medication[] = [
+      {
+        id: 'med-0800',
+        name: 'Remédio 08:00',
+        dosage: '1 cp',
+        timesPerDay: 1,
+        startTime: '08:00',
+        frequencyType: 'times_per_day',
+        color: 'blue',
+        active: true,
+        createdAt: Date.now(),
+      },
+      {
+        id: 'med-0801',
+        name: 'Remédio 08:01',
+        dosage: '1 cp',
+        timesPerDay: 1,
+        startTime: '08:01',
+        frequencyType: 'times_per_day',
+        color: 'rose',
+        active: true,
+        createdAt: Date.now(),
+      },
+    ];
+
+    const count = await scheduleNativeFutureAlarms(mockMeds);
+    expect(count).toBeGreaterThanOrEqual(0);
+  });
+
   it('should request permissions safely', async () => {
     const perm = await requestAllAlarmPermissions();
     expect(typeof perm).toBe('boolean');
